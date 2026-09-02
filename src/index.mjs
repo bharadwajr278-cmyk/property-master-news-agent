@@ -3,7 +3,7 @@ import path from "node:path";
 
 const API_URL = process.env.PROPERTY_MASTER_API_URL || "https://api.propertymaster.com/api/news";
 const DRY_RUN = process.env.DRY_RUN === "true";
-const MAX_AGE_HOURS = Number(process.env.MAX_AGE_HOURS || 6);
+const MAX_AGE_HOURS = Number(process.env.MAX_AGE_HOURS || 24);
 const statePath = path.resolve("data/fingerprints.json");
 const sources = JSON.parse(await fs.readFile("sources.json", "utf8"));
 const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
@@ -37,7 +37,7 @@ function parseFeed(xml) {
 function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
 function eventKey(title) { const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore"]); return normalize(title).split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
 async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
-async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])logo(?:[\/_\.-]|$)|msid-47529300/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); return response.ok && response.headers.get("content-type")?.toLowerCase().startsWith("image/") && (!length || length >= 15000); }
+async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); return response.ok && response.headers.get("content-type")?.toLowerCase().includes("image/") && (!length || length >= 15000); }
 
 const seenUrls = new Set();
 for (const source of sources) {
@@ -62,7 +62,7 @@ for (const source of sources) {
     if (articleDate && Math.abs(articleDate - date) > 24 * 3600_000) { report.skipped.push({ source: source.publisher, title, reason: "RSS and article publication dates conflict" }); continue; }
     const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
     const isNcr = /delhi ncr|\bncr\b/i.test(text);
-    const cities = isNcr ? ["gurugram", "noida", "faridabad"] : matches.length ? matches : (source.feedCity ? [source.feedCity] : []);
+    const cities = isNcr ? ["gurugram", "noida", "faridabad"] : matches.filter(city => city !== "noida" || !/greater noida/i.test(title));
     const publisherLogo = source.logo || siteIcon(page.html, page.finalUrl);
     if (!cities.length) { report.skipped.push({ source: source.publisher, title, reason: "supported city not established" }); continue; }
     if (!publisherLogo) { report.skipped.push({ source: source.publisher, title, reason: "publisher logo unavailable" }); continue; }

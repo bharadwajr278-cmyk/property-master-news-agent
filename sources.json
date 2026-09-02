@@ -2,6 +2,8 @@
   {"publisher":"Magicbricks","rssUrl":"https://www.magicbricks.com/news/feed","host":"magicbricks.com","logo":"https://img.staticmb.com/mbimages/appimages/mailers/mb-logo-web.webp"},
   {"publisher":"The Times of India","rssUrl":"https://timesofindia.indiatimes.com/rssfeeds/6547154.cms","host":"timesofindia.indiatimes.com","feedCity":"gurugram","logo":"https://timesofindia.indiatimes.com/icons/toifavicon.ico"},
   {"publisher":"The Times of India","rssUrl":"https://timesofindia.indiatimes.com/rssfeeds/8021716.cms","host":"timesofindia.indiatimes.com","feedCity":"noida","logo":"https://timesofindia.indiatimes.com/icons/toifavicon.ico"},
+  {"publisher":"Hindustan Times","rssUrl":"https://www.hindustantimes.com/feeds/rss/cities/gurugram-news/rssfeed.xml","host":"hindustantimes.com","feedCity":"gurugram"},
+  {"publisher":"Hindustan Times","rssUrl":"https://www.hindustantimes.com/feeds/rss/cities/noida-news/rssfeed.xml","host":"hindustantimes.com","feedCity":"noida"},
   {"publisher":"The Indian Express","rssUrl":"https://indianexpress.com/section/cities/delhi/feed/","host":"indianexpress.com"},
   {"publisher":"The Economic Times","rssUrl":"https://economictimes.indiatimes.com/rssfeeds/13357019.cms","host":"economictimes.indiatimes.com"}
 ]
