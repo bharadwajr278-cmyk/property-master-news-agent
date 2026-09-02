@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 4
     env:
       PROPERTY_MASTER_API_URL: https://api.propertymaster.com/api/news
+      MAX_AGE_HOURS: 6
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
     steps:
       - uses: actions/checkout@v4

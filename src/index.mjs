@@ -3,6 +3,7 @@ import path from "node:path";
 
 const API_URL = process.env.PROPERTY_MASTER_API_URL || "https://api.propertymaster.com/api/news";
 const DRY_RUN = process.env.DRY_RUN === "true";
+const MAX_AGE_HOURS = Number(process.env.MAX_AGE_HOURS || 6);
 const statePath = path.resolve("data/fingerprints.json");
 const sources = JSON.parse(await fs.readFile("sources.json", "utf8"));
 const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
@@ -21,7 +22,7 @@ function publishedAt(html) { const raw = meta(html, "article:published_time") ||
 function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
 function eventKey(title) { const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore"]); return normalize(title).split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
 async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
-async function imageWorks(url) { if (!url?.startsWith("https://")) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); return response.ok && response.headers.get("content-type")?.toLowerCase().startsWith("image/"); }
+async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])logo(?:[\/_\.-]|$)|msid-47529300/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); return response.ok && response.headers.get("content-type")?.toLowerCase().startsWith("image/") && (!length || length >= 15000); }
 
 for (const source of sources) {
   let index;
@@ -35,11 +36,11 @@ for (const source of sources) {
     const thumbnailImage = meta(page.html, "og:image");
     const date = publishedAt(page.html); const text = `${title} ${description}`;
     if (!title || !description || !headlineRelevance.test(title) || !relevance.test(text) || rejection.test(text)) continue;
-    if (!date || date > now || now - date > 48 * 3600_000) continue;
+    if (!date || date > now || now - date > MAX_AGE_HOURS * 3600_000) continue;
     const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
     const isNcr = /delhi ncr|\bncr\b/i.test(text);
     const cities = isNcr ? ["gurugram", "noida", "faridabad"] : matches;
-    if (!cities.length || !(await imageWorks(thumbnailImage)) || !(await imageWorks(publisherLogo))) continue;
+    if (!cities.length || thumbnailImage === publisherLogo || !(await imageWorks(thumbnailImage))) continue;
     const newsLink = canonical(page.html, page.finalUrl);
     for (const cityCode of cities) {
       const fingerprint = `${cityCode}|${eventKey(title)}|${date.toISOString().slice(0, 10)}`;
