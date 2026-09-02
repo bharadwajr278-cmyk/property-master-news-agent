@@ -7,5 +7,6 @@
   {"publisher":"Hindustan Times","rssUrl":"https://www.hindustantimes.com/feeds/rss/cities/faridabad-news/rssfeed.xml","host":"hindustantimes.com","feedCity":"faridabad"},
   {"publisher":"Hindustan Times","rssUrl":"https://www.hindustantimes.com/feeds/rss/real-estate/rssfeed.xml","host":"hindustantimes.com"},
   {"publisher":"The Indian Express","rssUrl":"https://indianexpress.com/section/cities/delhi/feed/","host":"indianexpress.com"},
-  {"publisher":"The Economic Times","rssUrl":"https://economictimes.indiatimes.com/rssfeeds/13357019.cms","host":"economictimes.indiatimes.com"}
+  {"publisher":"The Economic Times","rssUrl":"https://economictimes.indiatimes.com/rssfeeds/13357019.cms","host":"economictimes.indiatimes.com"},
+  {"publisher":"RealtyNMore","rssUrl":"https://realtynmore.com/feed/","host":"realtynmore.com"}
 ]
