@@ -1,6 +1,6 @@
 # Property Master News Agent
 
-GitHub Actions automation that researches, validates, deduplicates, and publishes city-routed news to Property Master.
+GitHub Actions automation that scans configured publisher pages, validates metadata, deduplicates, and publishes city-routed news to Property Master. No OpenAI API key is required.
 
 ## Schedule
 
@@ -9,10 +9,9 @@ Runs every five minutes, the shortest interval supported for scheduled GitHub Ac
 ## Deployment
 
 1. Create a private GitHub repository and push this folder to its default branch.
-2. In **Settings → Secrets and variables → Actions**, add the repository secret `OPENAI_API_KEY`.
-3. Open **Actions → Publish Property Master news → Run workflow** and keep **dry_run** enabled for the first run.
-4. Review the uploaded `run-report.json` artifact. Then run once with dry-run disabled.
-5. Scheduled publishing will run automatically every five minutes, even when your computer is off.
+2. Open **Actions → Publish Property Master news → Run workflow** and keep **dry_run** enabled for the first run.
+3. Review the uploaded `run-report.json` artifact. Then run once with dry-run disabled.
+4. Scheduled publishing will run automatically every five minutes, even when your computer is off.
 
 The workflow sends `createdAt` as the current UTC ISO-8601 timestamp and rejects API responses where it is missing. Published fingerprints are committed to `data/fingerprints.json` to prevent repeat submissions.
 

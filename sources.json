@@ -1,0 +1,6 @@
+[
+  {"publisher":"Magicbricks","startUrl":"https://www.magicbricks.com/news","host":"magicbricks.com","articlePattern":"/news/.+/[0-9]+\\.html","logo":"https://img.staticmb.com/mbimages/appimages/mailers/mb-logo-web.webp"},
+  {"publisher":"Construction World","startUrl":"https://www.constructionworld.in/","host":"constructionworld.in","articlePattern":"/.+-news/.+","logo":"https://www.constructionworld.in/assets/images/favicon/favicon-32x32.png"},
+  {"publisher":"The Indian Express","startUrl":"https://indianexpress.com/section/cities/delhi/","host":"indianexpress.com","articlePattern":"/article/cities/delhi/","logo":"https://indianexpress.com/wp-content/themes/indianexpress/images/favicon.ico"},
+  {"publisher":"ETRealty","startUrl":"https://realty.economictimes.indiatimes.com/news","host":"realty.economictimes.indiatimes.com","articlePattern":"/news/","logo":"https://realty.economictimes.indiatimes.com/favicon.ico"}
+]

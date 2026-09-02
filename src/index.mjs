@@ -1,98 +1,52 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PROPERTY_MASTER_API_URL = process.env.PROPERTY_MASTER_API_URL || "https://api.propertymaster.com/api/news";
-const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
+const API_URL = process.env.PROPERTY_MASTER_API_URL || "https://api.propertymaster.com/api/news";
 const DRY_RUN = process.env.DRY_RUN === "true";
 const statePath = path.resolve("data/fingerprints.json");
-
-if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required");
-
+const sources = JSON.parse(await fs.readFile("sources.json", "utf8"));
 const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
 const now = new Date();
+const report = { startedAt: now.toISOString(), dryRun: DRY_RUN, published: [], skipped: [], errors: [] };
+const relevance = /real estate|property|housing|residential|commercial|rera|project|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|authority|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drainage|water supply/i;
+const rejection = /murder|assault|robbery|arrest|accident|suicide|election|celebrity|sports|lifestyle|horoscope/i;
+const cityRules = { gurugram: /gurugram|gurgaon|manesar|dwarka expressway/i, noida: /(?<!greater )\bnoida\b|new okhla industrial development authority/i, faridabad: /faridabad|greater faridabad|fmda/i };
 
-const prompt = `You are a conservative real-estate news researcher. Today is ${now.toISOString()}.
-Search the web for genuinely new, useful real-estate or property-impacting infrastructure news published in the last 24 hours for Gurugram/Gurgaon, Noida, Faridabad/Greater Faridabad, or Delhi NCR as a whole. Extend to 48 hours only if necessary. Prefer official government, RERA, authority, regulatory, stock-exchange, or original publisher sources.
+function decodeHtml(s = "") { return s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
+function meta(html, key) { const a = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']+)`, "i")); const b = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${key}["']`, "i")); return decodeHtml(a?.[1] || b?.[1] || ""); }
+function canonical(html, fallback) { return decodeHtml(html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)/i)?.[1] || fallback); }
+function publishedAt(html) { const raw = meta(html, "article:published_time") || html.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]; const date = raw ? new Date(raw) : null; return date && Number.isFinite(date.valueOf()) ? date : null; }
+function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
+async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
+async function imageWorks(url) { if (!url?.startsWith("https://")) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); return response.ok && response.headers.get("content-type")?.toLowerCase().startsWith("image/"); }
 
-Reject crime, politics, accidents, lifestyle, generic business, advertisements, marketing copy, rumours, stale/reposted articles, and Greater-Noida-only news. Open and verify original pages. Return at most 5 candidates. An NCR-wide story must genuinely affect the region, not merely mention NCR.
-
-Return ONLY a JSON array. Each item must contain:
-{"title":"concise verified headline","description":"standalone factual description","scope":"gurugram|noida|faridabad|ncr","newsLink":"canonical original article URL","thumbnailImage":"public directly-loadable relevant image URL","postedBy":"actual publisher","postedByLogo":"public directly-loadable publisher logo URL","publishedAt":"ISO-8601 source publication time","authority":"normalized developer or authority","subject":"normalized project or infrastructure name","event":"normalized key event"}
-
-Do not return an item if any field is missing, uncertain, invented, inaccessible, or if the image is irrelevant. No markdown.`;
-
-const aiResponse = await fetch("https://api.openai.com/v1/responses", {
-  method: "POST",
-  headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-  body: JSON.stringify({ model: MODEL, tools: [{ type: "web_search_preview" }], input: prompt })
-});
-if (!aiResponse.ok) throw new Error(`OpenAI request failed: ${aiResponse.status} ${await aiResponse.text()}`);
-const ai = await aiResponse.json();
-const outputText = ai.output?.flatMap(x => x.content || []).find(x => x.type === "output_text")?.text;
-if (!outputText) throw new Error("Research response contained no output_text");
-
-let candidates;
-try { candidates = JSON.parse(outputText); }
-catch { throw new Error(`Research output was not valid JSON: ${outputText.slice(0, 500)}`); }
-if (!Array.isArray(candidates)) throw new Error("Research output must be an array");
-
-const cityRoutes = { gurugram: ["gurugram"], noida: ["noida"], faridabad: ["faridabad"], ncr: ["gurugram", "noida", "faridabad"] };
-const report = { startedAt: now.toISOString(), dryRun: DRY_RUN, published: [], skipped: [] };
-
-async function checkUrl(url, image = false) {
-  if (!/^https:\/\//i.test(url)) return false;
-  const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000) });
-  if (!response.ok) return false;
-  if (image && !response.headers.get("content-type")?.toLowerCase().startsWith("image/")) return false;
-  return true;
-}
-
-for (const item of candidates) {
-  const routes = cityRoutes[item.scope];
-  if (!routes) { report.skipped.push({ title: item.title, reason: "invalid scope" }); continue; }
-  const publishedAt = new Date(item.publishedAt);
-  if (!Number.isFinite(publishedAt.valueOf()) || now - publishedAt > 48 * 3600_000 || publishedAt > now) {
-    report.skipped.push({ title: item.title, reason: "invalid or stale publication time" }); continue;
-  }
-  try {
-    const [articleOk, imageOk, logoOk] = await Promise.all([
-      checkUrl(item.newsLink), checkUrl(item.thumbnailImage, true), checkUrl(item.postedByLogo, true)
-    ]);
-    if (!articleOk || !imageOk || !logoOk) {
-      report.skipped.push({ title: item.title, reason: "source, thumbnail, or logo validation failed" }); continue;
+for (const source of sources) {
+  let index;
+  try { index = await fetchText(source.startUrl); } catch (error) { report.errors.push({ source: source.publisher, error: error.message }); continue; }
+  const links = [...index.html.matchAll(/<a[^>]+href=["']([^"'#]+)["']/gi)].map(m => { try { return new URL(decodeHtml(m[1]), index.finalUrl).href; } catch { return null; } }).filter(Boolean).filter(u => new URL(u).hostname.endsWith(source.host)).filter(u => source.articlePattern ? new RegExp(source.articlePattern, "i").test(u) : true);
+  for (const url of [...new Set(links)].slice(0, 35)) {
+    let page; try { page = await fetchText(url); } catch { continue; }
+    const title = meta(page.html, "og:title") || decodeHtml(page.html.match(/<title[^>]*>(.*?)<\/title>/is)?.[1]);
+    const description = meta(page.html, "og:description") || meta(page.html, "description");
+    const thumbnailImage = meta(page.html, "og:image");
+    const date = publishedAt(page.html); const text = `${title} ${description}`;
+    if (!title || !description || !relevance.test(text) || rejection.test(text)) continue;
+    if (!date || date > now || now - date > 48 * 3600_000) continue;
+    const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
+    const isNcr = /delhi ncr|\bncr\b/i.test(text);
+    const cities = isNcr ? ["gurugram", "noida", "faridabad"] : matches;
+    if (!cities.length || !(await imageWorks(thumbnailImage)) || !(await imageWorks(source.logo))) continue;
+    const newsLink = canonical(page.html, page.finalUrl);
+    for (const cityCode of cities) {
+      const fingerprint = `${cityCode}|${normalize(title)}|${date.toISOString().slice(0, 10)}`;
+      if (prior.has(fingerprint)) continue;
+      const payload = { title, description: isNcr ? `${description} This NCR-wide development is relevant to the ${cityCode} market.` : description, cityCode, isActive: true, newsLink, thumbnailImage, postedBy: source.publisher, postedByLogo: source.logo, createdAt: new Date().toISOString() };
+      if (DRY_RUN) { report.published.push({ dryRun: true, fingerprint, payload }); continue; }
+      try { const response = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) }); const body = await response.json(); if (!response.ok || !body?.data?.id || !body?.data?.createdAt) throw new Error(`${response.status} ${JSON.stringify(body)}`); prior.add(fingerprint); report.published.push({ cityCode, title, newsLink, apiId: body.data.id, createdAt: body.data.createdAt, fingerprint }); } catch (error) { report.errors.push({ cityCode, title, error: error.message }); }
     }
-  } catch (error) {
-    report.skipped.push({ title: item.title, reason: `URL validation error: ${error.message}` }); continue;
-  }
-
-  for (const cityCode of routes) {
-    const fingerprint = `${cityCode}|${item.authority}|${item.subject}|${item.event}`.toLowerCase().replace(/\s+/g, "-");
-    if (prior.has(fingerprint)) { report.skipped.push({ title: item.title, cityCode, reason: "duplicate fingerprint" }); continue; }
-    const payload = {
-      title: item.title,
-      description: item.scope === "ncr" ? `${item.description} This verified NCR-wide development is relevant to the ${cityCode} property market.` : item.description,
-      cityCode,
-      isActive: true,
-      newsLink: item.newsLink,
-      thumbnailImage: item.thumbnailImage,
-      postedBy: item.postedBy,
-      postedByLogo: item.postedByLogo,
-      createdAt: new Date().toISOString()
-    };
-    if (DRY_RUN) { report.published.push({ dryRun: true, fingerprint, payload }); continue; }
-    const response = await fetch(PROPERTY_MASTER_API_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000)
-    });
-    const body = await response.text();
-    if (!response.ok) throw new Error(`Property Master POST failed: ${response.status} ${body}`);
-    const parsed = JSON.parse(body);
-    if (!parsed?.data?.id || !parsed?.data?.createdAt) throw new Error(`Invalid success response or null createdAt: ${body}`);
-    prior.add(fingerprint);
-    report.published.push({ fingerprint, cityCode, apiId: parsed.data.id, createdAt: parsed.data.createdAt, newsLink: item.newsLink });
   }
 }
-
 await fs.writeFile(statePath, `${JSON.stringify([...prior].sort(), null, 2)}\n`);
 await fs.writeFile("run-report.json", `${JSON.stringify(report, null, 2)}\n`);
 console.log(JSON.stringify(report, null, 2));
+if (report.errors.length) process.exitCode = 1;
