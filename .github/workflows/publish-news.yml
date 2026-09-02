@@ -9,8 +9,8 @@ on:
         default: true
         type: boolean
   schedule:
-    # Every five minutes, offset from GitHub's busiest top-of-hour slots.
-    - cron: "2-59/5 * * * *"
+    # Run automatically every five minutes (UTC).
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
