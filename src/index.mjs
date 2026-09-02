@@ -9,6 +9,7 @@ const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
 const now = new Date();
 const report = { startedAt: now.toISOString(), dryRun: DRY_RUN, published: [], skipped: [], errors: [] };
 const relevance = /real estate|property|housing|residential|commercial|rera|project|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|authority|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drainage|water supply/i;
+const headlineRelevance = /real estate|property|housing|residential|commercial|rera|project|plot|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drain/i;
 const rejection = /murder|assault|robbery|arrest|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|garbage heap|rain havoc|traffic snarl|horoscope|election|celebrity|sports|lifestyle/i;
 const cityRules = { gurugram: /gurugram|gurgaon|manesar|dwarka expressway/i, noida: /(?<!greater )\bnoida\b|new okhla industrial development authority/i, faridabad: /faridabad|greater faridabad|fmda/i };
 
@@ -33,7 +34,7 @@ for (const source of sources) {
     const description = meta(page.html, "og:description") || meta(page.html, "description");
     const thumbnailImage = meta(page.html, "og:image");
     const date = publishedAt(page.html); const text = `${title} ${description}`;
-    if (!title || !description || !relevance.test(text) || rejection.test(text)) continue;
+    if (!title || !description || !headlineRelevance.test(title) || !relevance.test(text) || rejection.test(text)) continue;
     if (!date || date > now || now - date > 48 * 3600_000) continue;
     const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
     const isNcr = /delhi ncr|\bncr\b/i.test(text);
