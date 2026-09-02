@@ -72,6 +72,7 @@ async function run(env) {
   const prior = new Set((await env.NEWS_STATE.get("fingerprints", "json")) || []);
   const report = { startedAt: now.toISOString(), published: [], skipped: 0, errors: [] };
   const seenUrls = new Set();
+  let articleChecks = 0;
   for (const source of sources) {
     let feed;
     try { feed = await fetchText(source.rssUrl); } catch (error) { report.errors.push({ source: source.publisher, error: error.message }); continue; }
@@ -79,7 +80,11 @@ async function run(env) {
     for (const item of items.slice(0, 30)) {
       if (!item.url || seenUrls.has(item.url) || nonArticleUrl.test(item.url) || !item.date || item.date > now || now - item.date > MAX_AGE_MS) { report.skipped++; continue; }
       seenUrls.add(item.url);
+      const feedText = `${item.title} ${item.description}`;
+      const feedHasCity = /delhi ncr|\bncr\b/i.test(feedText) || Object.values(cityRules).some(rule => rule.test(feedText));
+      if (!relevance.test(feedText) || rejection.test(feedText) || !feedHasCity || articleChecks >= 25) { report.skipped++; continue; }
       try { if (!new URL(item.url).hostname.endsWith(source.host)) { report.skipped++; continue; } } catch { report.skipped++; continue; }
+      articleChecks++;
       let page;
       try { page = await fetchText(item.url); } catch { report.skipped++; continue; }
       const title = meta(page.html, "og:title") || item.title;
