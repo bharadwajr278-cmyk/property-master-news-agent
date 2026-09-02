@@ -12,6 +12,7 @@ const report = { startedAt: now.toISOString(), dryRun: DRY_RUN, published: [], s
 const relevance = /real estate|property|housing|residential|commercial|rera|project|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|authority|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drainage|water supply/i;
 const headlineRelevance = /real estate|property|housing|residential|commercial|rera|project|plot|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drain/i;
 const rejection = /murder|assault|robbery|arrest|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|garbage heap|rain havoc|traffic snarl|horoscope|election|celebrity|sports|lifestyle/i;
+const nonArticleUrl = /\/web-stories?\/|\/photos?\/|\/videos?\/|\/podcasts?\/|\/blogs?\/|\/opinion\//i;
 const cityRules = { gurugram: /gurugram|gurgaon|manesar|dwarka expressway/i, noida: /(?<!greater )\bnoida\b|new okhla industrial development authority/i, faridabad: /faridabad|greater faridabad|fmda/i };
 
 function decodeHtml(s = "") { return s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
@@ -49,6 +50,7 @@ for (const source of sources) {
     const url = item.url;
     if (!url || seenUrls.has(url)) continue;
     seenUrls.add(url);
+    if (nonArticleUrl.test(url)) { report.skipped.push({ source: source.publisher, title: item.title, reason: "not a full news article" }); continue; }
     if (!item.date || item.date > now || now - item.date > MAX_AGE_HOURS * 3600_000) { report.skipped.push({ source: source.publisher, title: item.title, reason: "outside freshness window or missing RSS date" }); continue; }
     try { if (!new URL(url).hostname.endsWith(source.host)) { report.skipped.push({ source: source.publisher, title: item.title, reason: "RSS link is not on publisher domain" }); continue; } } catch { continue; }
     let page; try { page = await fetchText(url); } catch (error) { report.skipped.push({ source: source.publisher, title: item.title, reason: `article unavailable: ${error.message}` }); continue; }
