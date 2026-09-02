@@ -9,20 +9,23 @@ const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
 const now = new Date();
 const report = { startedAt: now.toISOString(), dryRun: DRY_RUN, published: [], skipped: [], errors: [] };
 const relevance = /real estate|property|housing|residential|commercial|rera|project|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|authority|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drainage|water supply/i;
-const rejection = /murder|assault|robbery|arrest|accident|suicide|election|celebrity|sports|lifestyle|horoscope/i;
+const rejection = /murder|assault|robbery|arrest|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|garbage heap|rain havoc|traffic snarl|horoscope|election|celebrity|sports|lifestyle/i;
 const cityRules = { gurugram: /gurugram|gurgaon|manesar|dwarka expressway/i, noida: /(?<!greater )\bnoida\b|new okhla industrial development authority/i, faridabad: /faridabad|greater faridabad|fmda/i };
 
 function decodeHtml(s = "") { return s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
 function meta(html, key) { const a = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']+)`, "i")); const b = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${key}["']`, "i")); return decodeHtml(a?.[1] || b?.[1] || ""); }
 function canonical(html, fallback) { return decodeHtml(html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)/i)?.[1] || fallback); }
+function siteIcon(html, baseUrl) { const raw = html.match(/<link[^>]+rel=["'][^"']*(?:icon|shortcut icon)[^"']*["'][^>]+href=["']([^"']+)/i)?.[1]; try { return new URL(decodeHtml(raw || "/favicon.ico"), baseUrl).href; } catch { return ""; } }
 function publishedAt(html) { const raw = meta(html, "article:published_time") || html.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]; const date = raw ? new Date(raw) : null; return date && Number.isFinite(date.valueOf()) ? date : null; }
 function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
+function eventKey(title) { const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore"]); return normalize(title).split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
 async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
 async function imageWorks(url) { if (!url?.startsWith("https://")) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); return response.ok && response.headers.get("content-type")?.toLowerCase().startsWith("image/"); }
 
 for (const source of sources) {
   let index;
   try { index = await fetchText(source.startUrl); } catch (error) { report.errors.push({ source: source.publisher, error: error.message }); continue; }
+  const publisherLogo = source.logo || siteIcon(index.html, index.finalUrl);
   const links = [...index.html.matchAll(/<a[^>]+href=["']([^"'#]+)["']/gi)].map(m => { try { return new URL(decodeHtml(m[1]), index.finalUrl).href; } catch { return null; } }).filter(Boolean).filter(u => new URL(u).hostname.endsWith(source.host)).filter(u => source.articlePattern ? new RegExp(source.articlePattern, "i").test(u) : true);
   for (const url of [...new Set(links)].slice(0, 35)) {
     let page; try { page = await fetchText(url); } catch { continue; }
@@ -35,12 +38,12 @@ for (const source of sources) {
     const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
     const isNcr = /delhi ncr|\bncr\b/i.test(text);
     const cities = isNcr ? ["gurugram", "noida", "faridabad"] : matches;
-    if (!cities.length || !(await imageWorks(thumbnailImage)) || !(await imageWorks(source.logo))) continue;
+    if (!cities.length || !(await imageWorks(thumbnailImage)) || !(await imageWorks(publisherLogo))) continue;
     const newsLink = canonical(page.html, page.finalUrl);
     for (const cityCode of cities) {
-      const fingerprint = `${cityCode}|${normalize(title)}|${date.toISOString().slice(0, 10)}`;
+      const fingerprint = `${cityCode}|${eventKey(title)}|${date.toISOString().slice(0, 10)}`;
       if (prior.has(fingerprint)) continue;
-      const payload = { title, description: isNcr ? `${description} This NCR-wide development is relevant to the ${cityCode} market.` : description, cityCode, isActive: true, newsLink, thumbnailImage, postedBy: source.publisher, postedByLogo: source.logo, createdAt: new Date().toISOString() };
+      const payload = { title, description: isNcr ? `${description} This NCR-wide development is relevant to the ${cityCode} market.` : description, cityCode, isActive: true, newsLink, thumbnailImage, postedBy: source.publisher, postedByLogo: publisherLogo, createdAt: new Date().toISOString() };
       if (DRY_RUN) { report.published.push({ dryRun: true, fingerprint, payload }); continue; }
       try { const response = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) }); const body = await response.json(); if (!response.ok || !body?.data?.id || !body?.data?.createdAt) throw new Error(`${response.status} ${JSON.stringify(body)}`); prior.add(fingerprint); report.published.push({ cityCode, title, newsLink, apiId: body.data.id, createdAt: body.data.createdAt, fingerprint }); } catch (error) { report.errors.push({ cityCode, title, error: error.message }); }
     }

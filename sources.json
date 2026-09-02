@@ -1,6 +1,14 @@
 [
   {"publisher":"Magicbricks","startUrl":"https://www.magicbricks.com/news","host":"magicbricks.com","articlePattern":"/news/.+/[0-9]+\\.html","logo":"https://img.staticmb.com/mbimages/appimages/mailers/mb-logo-web.webp"},
-  {"publisher":"Construction World","startUrl":"https://www.constructionworld.in/","host":"constructionworld.in","articlePattern":"/.+-news/.+","logo":"https://www.constructionworld.in/assets/images/favicon/favicon-32x32.png"},
-  {"publisher":"The Indian Express","startUrl":"https://indianexpress.com/section/cities/delhi/","host":"indianexpress.com","articlePattern":"/article/cities/delhi/","logo":"https://indianexpress.com/wp-content/themes/indianexpress/images/favicon.ico"},
-  {"publisher":"ETRealty","startUrl":"https://realty.economictimes.indiatimes.com/news","host":"realty.economictimes.indiatimes.com","articlePattern":"/news/","logo":"https://realty.economictimes.indiatimes.com/favicon.ico"}
+  {"publisher":"Construction World","startUrl":"https://www.constructionworld.in/","host":"constructionworld.in","articlePattern":"/(latest-construction-news|policy-updates-and-economic-news|urban-infrastructure|real-estate-news)/","logo":"https://www.constructionworld.in/assets/images/favicon/favicon-32x32.png"},
+  {"publisher":"ETRealty","startUrl":"https://realty.economictimes.indiatimes.com/news","host":"realty.economictimes.indiatimes.com","articlePattern":"/news/"},
+  {"publisher":"The Times of India — Gurgaon","startUrl":"https://timesofindia.indiatimes.com/city/gurgaon","host":"timesofindia.indiatimes.com","articlePattern":"/city/gurgaon/.+/articleshow/"},
+  {"publisher":"The Times of India — Noida","startUrl":"https://timesofindia.indiatimes.com/city/noida","host":"timesofindia.indiatimes.com","articlePattern":"/city/noida/.+/articleshow/"},
+  {"publisher":"The Tribune","startUrl":"https://www.tribuneindia.com/news/haryana/","host":"tribuneindia.com","articlePattern":"/news/haryana/"},
+  {"publisher":"Moneycontrol","startUrl":"https://www.moneycontrol.com/news/business/real-estate/","host":"moneycontrol.com","articlePattern":"/news/business/(real-estate|companies)/"},
+  {"publisher":"The Economic Times","startUrl":"https://economictimes.indiatimes.com/industry/services/property-/-cstruction","host":"economictimes.indiatimes.com","articlePattern":"/industry/services/property-/-cstruction/.+/articleshow/"},
+  {"publisher":"The Indian Express","startUrl":"https://indianexpress.com/section/cities/delhi/","host":"indianexpress.com","articlePattern":"/article/cities/delhi/"},
+  {"publisher":"The Financial Express","startUrl":"https://www.financialexpress.com/","host":"financialexpress.com","articlePattern":"/(business|money|infrastructure)/"},
+  {"publisher":"The Pioneer","startUrl":"https://dailypioneer.com/","host":"dailypioneer.com","articlePattern":"/news/"},
+  {"publisher":"Sahi","startUrl":"https://www.sahi.com/news","host":"sahi.com","articlePattern":"/news/"}
 ]
