@@ -12,7 +12,8 @@
   "kv_namespaces": [
     {
       "binding": "NEWS_STATE",
-      "id": "9f16d6e94fd54471bca4711f584e796d"
+      "id": "9f16d6e94fd54471bca4711f584e796d",
+      "remote": true
     }
   ],
   "triggers": {
