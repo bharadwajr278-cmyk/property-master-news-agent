@@ -4,7 +4,7 @@ GitHub Actions automation that scans configured publisher pages, validates metad
 
 ## Schedule
 
-Runs every five minutes, the shortest interval supported for scheduled GitHub Actions workflows. It can also be started manually in dry-run mode.
+Runs automatically every five minutes at minutes 2, 7, 12, and so on. This is the shortest interval supported for scheduled GitHub Actions workflows. It can also be started manually in dry-run mode.
 
 ## Deployment
 
