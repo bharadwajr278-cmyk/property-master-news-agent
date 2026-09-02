@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.mjs",
-    "check": "node --check src/index.mjs"
+    "check": "node --check src/index.mjs && node --check worker/index.mjs",
+    "deploy:worker": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260901.1",
+    "wrangler": "^4.127.1"
   }
 }

@@ -1,3 +1,5 @@
 .env
 node_modules/
 run-report.json
+.wrangler/
+worker-configuration.d.ts
