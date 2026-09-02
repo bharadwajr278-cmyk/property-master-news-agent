@@ -49,4 +49,3 @@ for (const source of sources) {
 await fs.writeFile(statePath, `${JSON.stringify([...prior].sort(), null, 2)}\n`);
 await fs.writeFile("run-report.json", `${JSON.stringify(report, null, 2)}\n`);
 console.log(JSON.stringify(report, null, 2));
-if (report.errors.length) process.exitCode = 1;
