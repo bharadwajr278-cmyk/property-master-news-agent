@@ -8,6 +8,8 @@
   {"publisher":"Hindustan Times","rssUrl":"https://www.hindustantimes.com/feeds/rss/real-estate/rssfeed.xml","host":"hindustantimes.com"},
   {"publisher":"The Indian Express","rssUrl":"https://indianexpress.com/section/cities/delhi/feed/","host":"indianexpress.com"},
   {"publisher":"The Economic Times","rssUrl":"https://economictimes.indiatimes.com/rssfeeds/13357019.cms","host":"economictimes.indiatimes.com"},
+  {"publisher":"Business Standard","rssUrl":"https://www.business-standard.com/rss/content/real-estate-22310.rss","host":"business-standard.com","logo":"https://www.business-standard.com/bs-favicon.ico"},
+  {"publisher":"Business Standard","rssUrl":"https://www.business-standard.com/rss/latest.rss","host":"business-standard.com","logo":"https://www.business-standard.com/bs-favicon.ico"},
   {"publisher":"Swarajya","rssUrl":"https://swarajyamag.com/stories.rss","host":"swarajyamag.com"},
   {"publisher":"RealtyNMore","rssUrl":"https://realtynmore.com/feed/","host":"realtynmore.com"}
 ]
