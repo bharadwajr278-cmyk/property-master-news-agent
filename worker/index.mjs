@@ -17,7 +17,7 @@ const sources = [
 ];
 
 const relevance = /real estate|property|housing|residential|commercial|rera|project|plot|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drain|water supply|landfill/i;
-const rejection = /murder|assault|robbery|arrest|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|collision|collides?|vehicle\s+.*\brams?\b|\brams?\s+into\b|\bhits?\s+(?:a\s+)?(?:pole|divider)\b|power\s*cut|power\s+outage|without\s+(?:electricity|power)|electrocution|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|horoscope|election|celebrity|sports|lifestyle/i;
+const rejection = /murder|assault|robbery|arrest|\bfirs?\b|corruption|bribery|bribe|scam|fraud|forgery|cheating case|criminal investigation|vigilance (?:probe|raid|case)|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|collision|collides?|vehicle\s+.*\brams?\b|\brams?\s+into\b|\bhits?\s+(?:a\s+)?(?:pole|divider)\b|power\s*cut|power\s+outage|without\s+(?:electricity|power)|electrocution|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|horoscope|election|celebrity|sports|lifestyle/i;
 const nonArticleUrl = /\/web-stories?\/|\/photos?\/|\/videos?\/|\/podcasts?\/|\/blogs?\/|\/opinion\//i;
 const cityRules = {
   gurugram: /gurugram|gurgaon|manesar|dwarka expressway/i,
