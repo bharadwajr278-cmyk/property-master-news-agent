@@ -12,6 +12,7 @@ const sources = [
   { publisher: "Hindustan Times", rssUrl: "https://www.hindustantimes.com/feeds/rss/real-estate/rssfeed.xml", host: "hindustantimes.com" },
   { publisher: "The Indian Express", rssUrl: "https://indianexpress.com/section/cities/delhi/feed/", host: "indianexpress.com" },
   { publisher: "The Economic Times", rssUrl: "https://economictimes.indiatimes.com/rssfeeds/13357019.cms", host: "economictimes.indiatimes.com" },
+  { publisher: "Swarajya", rssUrl: "https://swarajyamag.com/stories.rss", host: "swarajyamag.com" },
   { publisher: "RealtyNMore", rssUrl: "https://realtynmore.com/feed/", host: "realtynmore.com" }
 ];
 
