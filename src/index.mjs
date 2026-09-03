@@ -13,6 +13,7 @@ const relevance = /real estate|property|housing|residential|commercial|rera|proj
 const headlineRelevance = /real estate|property|housing|residential|commercial|rera|project|plot|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drain/i;
 const rejection = /murder|assault|robbery|arrest|\bfirs?\b|corruption|bribery|bribe|scam|fraud|forgery|cheating case|criminal investigation|vigilance (?:probe|raid|case)|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|collision|collides?|vehicle\s+.*\brams?\b|\brams?\s+into\b|\bhits?\s+(?:a\s+)?(?:pole|divider)\b|power\s*cut|power\s+outage|without\s+(?:electricity|power)|electrocution|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|garbage heap|rain havoc|traffic snarl|horoscope|election|celebrity|sports|lifestyle/i;
 const nonArticleUrl = /\/web-stories?\/|\/photos?\/|\/videos?\/|\/podcasts?\/|\/blogs?\/|\/opinion\//i;
+const civicProblemOrSpeculation = /flooding crisis|flooded|waterlogging|municipal bonds?|\bcan ppps?\b|city needs\?/i;
 const cityRules = { gurugram: /gurugram|gurgaon|manesar|dwarka expressway/i, noida: /(?<!greater )\bnoida\b|new okhla industrial development authority/i, faridabad: /faridabad|greater faridabad|fmda/i };
 
 function decodeHtml(s = "") { return s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
@@ -60,7 +61,7 @@ for (const source of sources) {
     const articleDate = publishedAt(page.html);
     const date = item.date;
     const text = `${title} ${description}`;
-    if (!title || !description || !headlineRelevance.test(title) || !relevance.test(text) || rejection.test(text)) { report.skipped.push({ source: source.publisher, title, reason: "not relevant real-estate/infrastructure news" }); continue; }
+    if (!title || !description || /\?\s*$/.test(title) || !headlineRelevance.test(title) || !relevance.test(text) || rejection.test(text) || civicProblemOrSpeculation.test(text)) { report.skipped.push({ source: source.publisher, title, reason: "not relevant real-estate/infrastructure news" }); continue; }
     if (articleDate && Math.abs(articleDate - date) > 24 * 3600_000) { report.skipped.push({ source: source.publisher, title, reason: "RSS and article publication dates conflict" }); continue; }
     const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
     const isNcr = /delhi ncr|\bncr\b/i.test(text);
