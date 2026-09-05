@@ -41,7 +41,8 @@ function parseFeed(xml) {
 function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
 function eventKey(title) { const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore"]); return normalize(title).split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
 async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
-async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); return response.ok && response.headers.get("content-type")?.toLowerCase().includes("image/") && (!length || length >= 15000); }
+async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300|ht-generic|generic[_-]?cities/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); return response.ok && response.headers.get("content-type")?.toLowerCase().includes("image/") && (!length || length >= 15000); }
+async function articleImage(candidates, publisherLogo) { for (const candidate of candidates) { if (candidate && candidate !== publisherLogo && await imageWorks(candidate)) return candidate; } return ""; }
 
 const seenUrls = new Set();
 for (const source of sources) {
@@ -59,7 +60,6 @@ for (const source of sources) {
     let page; try { page = await fetchText(url); } catch (error) { report.skipped.push({ source: source.publisher, title: item.title, reason: `article unavailable: ${error.message}` }); continue; }
     const title = meta(page.html, "og:title") || item.title || decodeHtml(page.html.match(/<title[^>]*>(.*?)<\/title>/is)?.[1]);
     const description = meta(page.html, "og:description") || meta(page.html, "description") || item.description;
-    const thumbnailImage = meta(page.html, "og:image") || item.image;
     const articleDate = publishedAt(page.html);
     const date = item.date;
     const text = `${title} ${description}`;
@@ -69,9 +69,10 @@ for (const source of sources) {
     const isNcr = /delhi ncr|\bncr\b/i.test(text);
     const cities = isNcr ? ["gurugram", "noida", "faridabad"] : matches.filter(city => city !== "noida" || !/greater noida/i.test(title));
     const publisherLogo = source.logo || siteIcon(page.html, page.finalUrl);
+    const thumbnailImage = await articleImage([item.image, meta(page.html, "og:image"), meta(page.html, "twitter:image")], publisherLogo);
     if (!cities.length) { report.skipped.push({ source: source.publisher, title, reason: "supported city not established" }); continue; }
     if (!publisherLogo) { report.skipped.push({ source: source.publisher, title, reason: "publisher logo unavailable" }); continue; }
-    if (thumbnailImage === publisherLogo || !(await imageWorks(thumbnailImage))) { report.skipped.push({ source: source.publisher, title, reason: "usable original article image unavailable" }); continue; }
+    if (!thumbnailImage) { report.skipped.push({ source: source.publisher, title, reason: "usable original article image unavailable" }); continue; }
     const newsLink = canonical(page.html, page.finalUrl);
     for (const cityCode of cities) {
       const fingerprint = `${cityCode}|${eventKey(title)}|${date.toISOString().slice(0, 10)}`;

@@ -85,11 +85,18 @@ async function fetchText(url) {
   return { html: text, finalUrl: response.url };
 }
 async function imageWorks(url) {
-  if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300/i.test(url)) return false;
+  if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300|ht-generic|generic[_-]?cities/i.test(url)) return false;
   const response = await fetch(url, { redirect: "follow", headers: { Range: "bytes=0-1023" } });
   const type = response.headers.get("content-type")?.toLowerCase() || "";
   await response.body?.cancel();
   return response.ok && type.includes("image/");
+}
+async function articleImage(candidates, publisherLogo) {
+  for (const candidate of candidates) {
+    if (!candidate || candidate === publisherLogo) continue;
+    if (await imageWorks(candidate)) return candidate;
+  }
+  return "";
 }
 
 async function runOnce(env, coordinator) {
@@ -114,7 +121,6 @@ async function runOnce(env, coordinator) {
       try { page = await fetchText(item.url); } catch { report.skipped++; continue; }
       const title = meta(page.html, "og:title") || item.title;
       const description = meta(page.html, "og:description") || meta(page.html, "description") || item.description;
-      const thumbnailImage = meta(page.html, "og:image") || item.image;
       const articleDate = publishedAt(page.html);
       const text = `${title} ${description}`;
       if (!title || !description || /\?\s*$/.test(title) || !relevance.test(title) || !relevance.test(text) || !positiveDevelopment.test(text) || rejection.test(text) || civicProblemOrSpeculation.test(text) || negativeDevelopment.test(text) || (articleDate && Math.abs(articleDate - item.date) > 86_400_000)) { report.skipped++; continue; }
@@ -122,7 +128,10 @@ async function runOnce(env, coordinator) {
       const isNcr = /delhi ncr|\bncr\b/i.test(text);
       const cities = (isNcr ? ["gurugram", "noida", "faridabad"] : matches).filter(city => city !== "noida" || !/greater noida/i.test(title));
       const publisherLogo = source.logo || siteIcon(page.html, page.finalUrl);
-      if (!cities.length || !publisherLogo || thumbnailImage === publisherLogo || !(await imageWorks(thumbnailImage))) { report.skipped++; continue; }
+      // RSS media is often the story photo even when the article page exposes a
+      // generic section card as og:image (notably Hindustan Times "Cities").
+      const thumbnailImage = await articleImage([item.image, meta(page.html, "og:image"), meta(page.html, "twitter:image")], publisherLogo);
+      if (!cities.length || !publisherLogo || !thumbnailImage) { report.skipped++; continue; }
       const newsLink = canonical(page.html, page.finalUrl);
       for (const cityCode of cities) {
         const fingerprint = `${cityCode}|${eventKey(title)}|${item.date.toISOString().slice(0, 10)}`;
