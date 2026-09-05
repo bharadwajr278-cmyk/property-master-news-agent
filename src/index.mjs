@@ -5,7 +5,10 @@ const API_URL = process.env.PROPERTY_MASTER_API_URL || "https://api.propertymast
 const DRY_RUN = process.env.DRY_RUN === "true";
 const MAX_AGE_HOURS = Number(process.env.MAX_AGE_HOURS || 24);
 const MAX_IMAGE_BYTES = 5_000_000;
-const GENERIC_IMAGE_HASHES = new Set(["51b4e6b5454541def3a23ef7d3a9d040654b61308a13c34bfb7a6a50b9b13847"]);
+const GENERIC_IMAGE_HASHES = new Set([
+  "51b4e6b5454541def3a23ef7d3a9d040654b61308a13c34bfb7a6a50b9b13847",
+  "b34c5af1444a3c63ccd0c695557a5cdb2554d6d1c5b2bbf9dbd133034a391527"
+]);
 const statePath = path.resolve("data/fingerprints.json");
 const sources = JSON.parse(await fs.readFile("sources.json", "utf8"));
 const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
