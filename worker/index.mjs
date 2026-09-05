@@ -139,7 +139,11 @@ async function runOnce(env, coordinator) {
           prior.add(fingerprint);
           await coordinator.confirm(reservationKeys);
           report.published.push({ cityCode, title, apiId: body.data.id, fingerprint });
-        } catch (error) { await coordinator.release(reservationKeys); report.errors.push({ cityCode, title, error: error.message }); }
+        } catch (error) {
+          // Keep the reservation when the POST outcome is uncertain. Retrying
+          // could duplicate a record accepted before a timeout or lost response.
+          report.errors.push({ cityCode, title, error: error.message });
+        }
       }
     }
   }
@@ -152,12 +156,10 @@ async function runOnce(env, coordinator) {
 export class RunCoordinator extends DurableObject {
   async claim(keys) {
     const existing = await this.ctx.storage.get(keys);
+    // Pending and confirmed reservations are both permanent, giving each
+    // article/event at-most-once publishing semantics.
+    if (keys.some(key => existing.has(key))) return false;
     const now = Date.now();
-    const blocked = keys.some(key => {
-      const value = existing.get(key);
-      return value?.status === "posted" || (value?.status === "pending" && now - value.at < 10 * 60 * 1000);
-    });
-    if (blocked) return false;
     const pending = Object.fromEntries(keys.map(key => [key, { status: "pending", at: now }]));
     await this.ctx.storage.put(pending);
     return true;
@@ -165,7 +167,6 @@ export class RunCoordinator extends DurableObject {
   async confirm(keys) {
     await this.ctx.storage.put(Object.fromEntries(keys.map(key => [key, { status: "posted", at: Date.now() }])));
   }
-  async release(keys) { await this.ctx.storage.delete(keys); }
   async execute() {
     const now = Date.now();
     const lockedUntil = await this.ctx.storage.get("run-lock");
