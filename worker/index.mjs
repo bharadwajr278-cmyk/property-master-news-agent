@@ -1,3 +1,5 @@
+import { DurableObject } from "cloudflare:workers";
+
 const API_URL = "https://api.propertymaster.com/api/news";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_TEXT_BYTES = 5_000_000;
@@ -55,6 +57,23 @@ function canonical(html, fallback) { return decodeHtml(html.match(/<link[^>]+rel
 function siteIcon(html, baseUrl) { const raw = html.match(/<link[^>]+rel=["'][^"']*(?:icon|shortcut icon)[^"']*["'][^>]+href=["']([^"']+)/i)?.[1]; try { return new URL(decodeHtml(raw || "/favicon.ico"), baseUrl).href; } catch { return ""; } }
 function publishedAt(html) { const raw = meta(html, "article:published_time") || html.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]; const date = raw ? new Date(raw) : null; return date && Number.isFinite(date.valueOf()) ? date : null; }
 function eventKey(title) { const stop = new Set(["the", "a", "an", "to", "for", "in", "on", "of", "and", "as", "with", "by", "from", "rs", "crore"]); return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
+function subjectKey(text) {
+  const subjects = [
+    ["prestige", /\bprestige(?: group| estates)?\b/i], ["m3m", /\bm3m\b/i], ["sobha", /\b(?:sobha|shobha)\b/i],
+    ["amolik", /\bamolik\b/i], ["godrej", /\bgodrej(?: properties)?\b/i], ["dlf", /\bdlf\b/i],
+    ["bptp", /\bbptp\b/i], ["ace", /\bace group\b/i], ["gurgaon-metro", /\b(?:gurgaon|gurugram) metro\b/i],
+    ["noida-metro", /\b(?:noida|nmrc) metro\b/i]
+  ];
+  return subjects.find(([, pattern]) => pattern.test(text))?.[0] || "";
+}
+function normalizeUrl(value) {
+  try { const url = new URL(value); url.hash = ""; for (const key of [...url.searchParams.keys()]) if (/^(?:utm_|fbclid|gclid)/i.test(key)) url.searchParams.delete(key); return url.href.replace(/\/$/, "").toLowerCase(); }
+  catch { return value.toLowerCase(); }
+}
+async function digest(value) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
 
 async function fetchText(url) {
   const response = await fetch(url, { redirect: "follow", headers: { "User-Agent": "PropertyMasterNewsBot/2.0 (+https://www.propertymaster.com/)" } });
@@ -73,7 +92,7 @@ async function imageWorks(url) {
   return response.ok && type.includes("image/");
 }
 
-async function run(env) {
+async function runOnce(env, coordinator) {
   const now = new Date();
   const prior = new Set((await env.NEWS_STATE.get("fingerprints", "json")) || []);
   const report = { startedAt: now.toISOString(), published: [], skipped: 0, errors: [] };
@@ -108,14 +127,19 @@ async function run(env) {
       for (const cityCode of cities) {
         const fingerprint = `${cityCode}|${eventKey(title)}|${item.date.toISOString().slice(0, 10)}`;
         if (prior.has(fingerprint)) { report.skipped++; continue; }
+        const subject = subjectKey(text);
+        const eventIdentity = subject ? `${cityCode}|${subject}|${item.date.toISOString().slice(0, 10)}` : fingerprint;
+        const reservationKeys = [`event:${eventIdentity}`, `url:${cityCode}:${await digest(normalizeUrl(newsLink))}`];
+        if (!(await coordinator.claim(reservationKeys))) { report.skipped++; continue; }
         const payload = { title, description: isNcr ? `${description} This NCR-wide development is relevant to the ${cityCode} market.` : description, cityCode, isActive: true, newsLink, thumbnailImage, postedBy: source.publisher, postedByLogo: publisherLogo, createdAt: new Date().toISOString() };
         try {
           const response = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           const body = await response.json();
           if (!response.ok || !body?.data?.id || !body?.data?.createdAt) throw new Error(`${response.status} ${JSON.stringify(body)}`);
           prior.add(fingerprint);
+          await coordinator.confirm(reservationKeys);
           report.published.push({ cityCode, title, apiId: body.data.id, fingerprint });
-        } catch (error) { report.errors.push({ cityCode, title, error: error.message }); }
+        } catch (error) { await coordinator.release(reservationKeys); report.errors.push({ cityCode, title, error: error.message }); }
       }
     }
   }
@@ -125,8 +149,35 @@ async function run(env) {
   return report;
 }
 
+export class RunCoordinator extends DurableObject {
+  async claim(keys) {
+    const existing = await this.ctx.storage.get(keys);
+    const now = Date.now();
+    const blocked = keys.some(key => {
+      const value = existing.get(key);
+      return value?.status === "posted" || (value?.status === "pending" && now - value.at < 10 * 60 * 1000);
+    });
+    if (blocked) return false;
+    const pending = Object.fromEntries(keys.map(key => [key, { status: "pending", at: now }]));
+    await this.ctx.storage.put(pending);
+    return true;
+  }
+  async confirm(keys) {
+    await this.ctx.storage.put(Object.fromEntries(keys.map(key => [key, { status: "posted", at: Date.now() }])));
+  }
+  async release(keys) { await this.ctx.storage.delete(keys); }
+  async execute() {
+    const now = Date.now();
+    const lockedUntil = await this.ctx.storage.get("run-lock");
+    if (typeof lockedUntil === "number" && lockedUntil > now) return { skippedRun: true, reason: "another run is active" };
+    await this.ctx.storage.put("run-lock", now + 4 * 60 * 1000);
+    try { return await runOnce(this.env, this); }
+    finally { await this.ctx.storage.delete("run-lock"); }
+  }
+}
+
 export default {
-  async scheduled(_controller, env, ctx) { ctx.waitUntil(run(env)); },
+  async scheduled(_controller, env, ctx) { ctx.waitUntil(env.RUN_COORDINATOR.getByName("property-master-publisher").execute()); },
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/status") return Response.json((await env.NEWS_STATE.get("last-report", "json")) || { status: "waiting for first cron run" });

@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "property-master-news-agent",
   "main": "worker/index.mjs",
-  "compatibility_date": "2026-09-02",
+  "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": {
@@ -15,6 +15,14 @@
       "id": "9f16d6e94fd54471bca4711f584e796d",
       "remote": true
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "RUN_COORDINATOR", "class_name": "RunCoordinator" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RunCoordinator"] }
   ],
   "triggers": {
     "crons": ["*/5 * * * *"]
