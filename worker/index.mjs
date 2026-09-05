@@ -3,6 +3,10 @@ import { DurableObject } from "cloudflare:workers";
 const API_URL = "https://api.propertymaster.com/api/news";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_TEXT_BYTES = 5_000_000;
+const MAX_IMAGE_BYTES = 5_000_000;
+const GENERIC_IMAGE_HASHES = new Set([
+  "51b4e6b5454541def3a23ef7d3a9d040654b61308a13c34bfb7a6a50b9b13847"
+]);
 
 const sources = [
   { publisher: "Magicbricks", rssUrl: "https://www.magicbricks.com/news/feed", host: "magicbricks.com", logo: "https://img.staticmb.com/mbimages/appimages/mailers/mb-logo-web.webp" },
@@ -117,10 +121,14 @@ async function fetchText(url) {
 }
 async function imageWorks(url) {
   if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300|ht-generic|generic[_-]?cities/i.test(url)) return false;
-  const response = await fetch(url, { redirect: "follow", headers: { Range: "bytes=0-1023" } });
+  const response = await fetch(url, { redirect: "follow" });
   const type = response.headers.get("content-type")?.toLowerCase() || "";
-  await response.body?.cancel();
-  return response.ok && type.includes("image/");
+  const length = Number(response.headers.get("content-length") || 0);
+  if (!response.ok || !type.includes("image/") || length > MAX_IMAGE_BYTES) { await response.body?.cancel(); return false; }
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength > MAX_IMAGE_BYTES) return false;
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(byte => byte.toString(16).padStart(2, "0")).join("");
+  return !GENERIC_IMAGE_HASHES.has(hash);
 }
 async function articleImage(candidates, publisherLogo) {
   for (const candidate of candidates) {

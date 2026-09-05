@@ -4,6 +4,8 @@ import path from "node:path";
 const API_URL = process.env.PROPERTY_MASTER_API_URL || "https://api.propertymaster.com/api/news";
 const DRY_RUN = process.env.DRY_RUN === "true";
 const MAX_AGE_HOURS = Number(process.env.MAX_AGE_HOURS || 24);
+const MAX_IMAGE_BYTES = 5_000_000;
+const GENERIC_IMAGE_HASHES = new Set(["51b4e6b5454541def3a23ef7d3a9d040654b61308a13c34bfb7a6a50b9b13847"]);
 const statePath = path.resolve("data/fingerprints.json");
 const sources = JSON.parse(await fs.readFile("sources.json", "utf8"));
 const prior = new Set(JSON.parse(await fs.readFile(statePath, "utf8")));
@@ -42,7 +44,7 @@ function parseFeed(xml) {
 function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
 function eventKey(title) { const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore"]); return normalize(title).split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
 async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
-async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300|ht-generic|generic[_-]?cities/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); return response.ok && response.headers.get("content-type")?.toLowerCase().includes("image/") && (!length || length >= 15000); }
+async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300|ht-generic|generic[_-]?cities/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); if (!response.ok || !response.headers.get("content-type")?.toLowerCase().includes("image/") || (length && length < 15000) || length > MAX_IMAGE_BYTES) return false; const bytes = await response.arrayBuffer(); if (bytes.byteLength > MAX_IMAGE_BYTES) return false; const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(byte => byte.toString(16).padStart(2, "0")).join(""); return !GENERIC_IMAGE_HASHES.has(hash); }
 async function articleImage(candidates, publisherLogo) { for (const candidate of candidates) { if (candidate && candidate !== publisherLogo && await imageWorks(candidate)) return candidate; } return ""; }
 
 const seenUrls = new Set();
