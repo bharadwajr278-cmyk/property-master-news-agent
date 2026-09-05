@@ -66,6 +66,36 @@ function subjectKey(text) {
   ];
   return subjects.find(([, pattern]) => pattern.test(text))?.[0] || "";
 }
+function materialFacts(text) {
+  const facts = [];
+  const patterns = [
+    /(?:₹|\brs\.?|\binr)\s*[\d,.]+\s*(?:crores?|cr\.?|billions?|millions?|lakhs?)/gi,
+    /\b[\d,.]+\s*(?:acres?|sq\.?\s*ft|square feet|sq\.?\s*m|square metres?|km)\b/gi,
+    /\bsector\s*[-:]?\s*[a-z]?\d+[a-z]?\b/gi
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const normalized = match[0].toLowerCase()
+        .replace(/₹|\brs\.?|\binr/g, "")
+        .replace(/,/g, "")
+        .replace(/\bcrores?\b|\bcr\.?\b/g, "crore")
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9.-]/g, "");
+      if (normalized) facts.push(normalized);
+    }
+  }
+  return [...new Set(facts)].sort();
+}
+function semanticReservationKeys(cityCode, text, title, newsLink) {
+  const subject = subjectKey(text);
+  const keys = [`url:${cityCode}:${newsLink}`];
+  if (subject) {
+    const facts = materialFacts(text);
+    for (const fact of facts) keys.push(`fact:${cityCode}|${subject}|${fact}`);
+    keys.push(`headline:${cityCode}|${subject}|${eventKey(title)}`);
+  }
+  return keys;
+}
 function normalizeUrl(value) {
   try { const url = new URL(value); url.hash = ""; for (const key of [...url.searchParams.keys()]) if (/^(?:utm_|fbclid|gclid)/i.test(key)) url.searchParams.delete(key); return url.href.replace(/\/$/, "").toLowerCase(); }
   catch { return value.toLowerCase(); }
@@ -136,9 +166,9 @@ async function runOnce(env, coordinator) {
       for (const cityCode of cities) {
         const fingerprint = `${cityCode}|${eventKey(title)}|${item.date.toISOString().slice(0, 10)}`;
         if (prior.has(fingerprint)) { report.skipped++; continue; }
-        const subject = subjectKey(text);
-        const eventIdentity = subject ? `${cityCode}|${subject}|${item.date.toISOString().slice(0, 10)}` : fingerprint;
-        const reservationKeys = [`event:${eventIdentity}`, `url:${cityCode}:${await digest(normalizeUrl(newsLink))}`];
+        const normalizedNewsLinkDigest = await digest(normalizeUrl(newsLink));
+        const semanticKeys = semanticReservationKeys(cityCode, text, title, normalizedNewsLinkDigest);
+        const reservationKeys = [`event:${fingerprint}`, ...semanticKeys];
         if (!(await coordinator.claim(reservationKeys))) { report.skipped++; continue; }
         const payload = { title, description: isNcr ? `${description} This NCR-wide development is relevant to the ${cityCode} market.` : description, cityCode, isActive: true, newsLink, thumbnailImage, postedBy: source.publisher, postedByLogo: publisherLogo, createdAt: new Date().toISOString() };
         try {
@@ -167,7 +197,14 @@ export class RunCoordinator extends DurableObject {
     const existing = await this.ctx.storage.get(keys);
     // Pending and confirmed reservations are both permanent, giving each
     // article/event at-most-once publishing semantics.
-    if (keys.some(key => existing.has(key))) return false;
+    if (keys.some(key => existing.has(key))) {
+      // Backfill newly introduced semantic keys from an older URL reservation.
+      // This lets previously published records block equivalent coverage from
+      // another publisher without reposting the old record.
+      const missing = keys.filter(key => !existing.has(key));
+      if (missing.length) await this.ctx.storage.put(Object.fromEntries(missing.map(key => [key, { status: "posted", at: Date.now() }])));
+      return false;
+    }
     const now = Date.now();
     const pending = Object.fromEntries(keys.map(key => [key, { status: "pending", at: now }]));
     await this.ctx.storage.put(pending);
