@@ -23,7 +23,8 @@ const sources = [
   { publisher: "Business Standard", rssUrl: "https://www.business-standard.com/rss/content/real-estate-22310.rss", host: "business-standard.com", logo: "https://www.business-standard.com/bs-favicon.ico" },
   { publisher: "Business Standard", rssUrl: "https://www.business-standard.com/rss/latest.rss", host: "business-standard.com", logo: "https://www.business-standard.com/bs-favicon.ico" },
   { publisher: "Swarajya", rssUrl: "https://swarajyamag.com/stories.rss", host: "swarajyamag.com" },
-  { publisher: "RealtyNMore", rssUrl: "https://realtynmore.com/feed/", host: "realtynmore.com" }
+  { publisher: "RealtyNMore", rssUrl: "https://realtynmore.com/feed/", host: "realtynmore.com" },
+  { publisher: "Realty Quarter", rssUrl: "https://realtyquarter.com/feed/", host: "realtyquarter.com", logo: "https://realtyquarter.com/wp-content/uploads/2017/11/RQ-logo-fo-web.png" }
 ];
 
 const relevance = /real estate|property|properties|realty|builder|developer|housing|residential|commercial|rera|project|plot|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drain|water supply|landfill|revamp|repair|renovat|rehabilitat|upgrade|m3m|sobha|shobha|amolik|godrej|dlf|prestige|bptp|ace group/i;
