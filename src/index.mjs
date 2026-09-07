@@ -45,7 +45,11 @@ function parseFeed(xml) {
   });
 }
 function normalize(value) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100); }
-function eventKey(title) { const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore"]); return normalize(title).split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
+function eventKey(title) {
+  const stop = new Set(["the","a","an","to","for","in","on","of","and","as","with","by","from","rs","crore","get","gets","got","set","new","way"]);
+  return normalize(title.replace(/(\d),(?=\d{3}\b)/g, "$1").replace(/streetlights?/gi, "lights"))
+    .split("-").filter(x => x && !stop.has(x)).slice(0, 5).join("-");
+}
 async function fetchText(url) { const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000), headers: { "User-Agent": "PropertyMasterNewsBot/1.0 (+https://www.propertymaster.com/)" } }); if (!response.ok) throw new Error(`${response.status} ${url}`); return { html: await response.text(), finalUrl: response.url }; }
 async function imageWorks(url) { if (!url?.startsWith("https://") || /favicon|(?:^|[\/_-])(?:site-)?logo\.(?:png|jpe?g|webp|svg)(?:$|\?)|msid-47529300|ht-generic|generic[_-]?cities/i.test(url)) return false; const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15000) }); const length = Number(response.headers.get("content-length") || 0); if (!response.ok || !response.headers.get("content-type")?.toLowerCase().includes("image/") || (length && length < 15000) || length > MAX_IMAGE_BYTES) return false; const bytes = await response.arrayBuffer(); if (bytes.byteLength > MAX_IMAGE_BYTES) return false; const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(byte => byte.toString(16).padStart(2, "0")).join(""); return !GENERIC_IMAGE_HASHES.has(hash); }
 async function articleImage(candidates, publisherLogo) { for (const candidate of candidates) { if (candidate && candidate !== publisherLogo && await imageWorks(candidate)) return candidate; } return ""; }

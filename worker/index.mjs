@@ -64,11 +64,21 @@ function parseFeed(xml) {
 function canonical(html, fallback) { return decodeHtml(html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)/i)?.[1] || fallback); }
 function siteIcon(html, baseUrl) { const raw = html.match(/<link[^>]+rel=["'][^"']*(?:icon|shortcut icon)[^"']*["'][^>]+href=["']([^"']+)/i)?.[1]; try { return new URL(decodeHtml(raw || "/favicon.ico"), baseUrl).href; } catch { return ""; } }
 function publishedAt(html) { const raw = meta(html, "article:published_time") || html.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]; const date = raw ? new Date(raw) : null; return date && Number.isFinite(date.valueOf()) ? date : null; }
-function eventKey(title) { const stop = new Set(["the", "a", "an", "to", "for", "in", "on", "of", "and", "as", "with", "by", "from", "rs", "crore"]); return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
+function eventKey(title) {
+  const stop = new Set(["the", "a", "an", "to", "for", "in", "on", "of", "and", "as", "with", "by", "from", "rs", "crore", "get", "gets", "got", "set", "new", "way"]);
+  return title.toLowerCase()
+    .replace(/(\d),(?=\d{3}\b)/g, "$1")
+    .replace(/streetlights?/g, "lights")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .split("-").filter(x => x && !stop.has(x)).slice(0, 5).join("-");
+}
 function headlineSignature(title) {
   const stop = new Set(["the", "a", "an", "to", "for", "in", "on", "of", "and", "as", "with", "by", "from", "rs", "inr", "crore", "cr", "news", "latest"]);
   return [...new Set(title.toLowerCase()
     .replace(/gurgaon/g, "gurugram")
+    .replace(/(\d),(?=\d{3}\b)/g, "$1")
+    .replace(/streetlights?/g, "lights")
     .replace(/₹/g, " rs ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim().split(/\s+/)
