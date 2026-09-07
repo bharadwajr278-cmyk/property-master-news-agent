@@ -27,7 +27,7 @@ const sources = [
 
 const relevance = /real estate|property|properties|realty|builder|developer|housing|residential|commercial|rera|project|plot|land|launch|metro|road|expressway|highway|flyover|underpass|airport|rrts|namo bharat|infrastructure|master plan|circle rate|stamp duty|registry|township|corridor|sewer|drain|water supply|landfill|revamp|repair|renovat|rehabilitat|upgrade|m3m|sobha|shobha|amolik|godrej|dlf|prestige|bptp|ace group/i;
 const positiveDevelopment = /launch|acquir|purchase|land deal|development agreement|joint development|partnership|signs? (?:an? )?(?:mou|agreement)|invest|proposal|propos(?:e|es|ed|ing)|plans?|directs?|targets?|set to|to develop|approval|approv(?:es|ed|al)|clears?|sanction|tender|construction (?:starts|begins|completed)|work (?:starts|begins|completed)|inaugurat|commission|new (?:project|road|metro|corridor|flyover|underpass|expressway|housing)|expand|extension|upgrade|upgradation|overhaul|redevelop|revamp|repair|renovat|rehabilitat|multimodal|multi-modal|connectivity|milestone|rera registration|possession|handover|sales bookings?|pre-sales|booking value|complet(?:e|ed|ion)/i;
-const rejection = /murder|assault|robbery|arrest|\bfirs?\b|corruption|bribery|bribe|scam|fraud|forgery|cheating case|criminal investigation|vigilance (?:probe|raid|case)|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|collision|collides?|vehicle\s+.*\brams?\b|\brams?\s+into\b|\bhits?\s+(?:a\s+)?(?:pole|divider)\b|power\s*cut|power\s+outage|without\s+(?:electricity|power)|electrocution|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|horoscope|election|celebrity|sports|lifestyle/i;
+const rejection = /murder|assault|robbery|arrest|\bfirs?\b|corruption|bribery|bribe|scam|fraud|forgery|cheating case|criminal investigation|vigilance (?:probe|raid|case)|accident|suicide|killed|\bdies\b|\bdied\b|death|injured|crash|collision|collides?|vehicle\s+.*\brams?\b|\brams?\s+into\b|\bhits?\s+(?:a\s+)?(?:pole|divider)\b|power\s*cut|power\s+outage|without\s+(?:electricity|power)|electrocution|stunt|viral|police|gangster|liquor|pilgrim|devotee|school bus|biryani|sanitation strike|missing (?:streetlights?|streetlight poles?|lights?)|(?:road|street).{0,60}(?:in darkness|dark)|in darkness|without (?:streetlights?|lighting)|non-functional streetlights?|unsafe road|blackout|two years on|horoscope|election|celebrity|sports|lifestyle/i;
 const nonArticleUrl = /\/web-stories?\/|\/photos?\/|\/videos?\/|\/podcasts?\/|\/blogs?\/|\/opinion\//i;
 const civicProblemOrSpeculation = /flooding crisis|flooded|waterlogging|municipal bonds?|\bcan ppps?\b|city needs\?/i;
 const negativeDevelopment = /\braids?\b|assets? frozen|sealed|sealing|demolition|illegal construction|violations?|under scanner|defying orders?|\bjail\b|suspend(?:ed|sion)|cancel(?:led|lation)|dispute|court battle|complaints?|delays?|stalled|lagging|drop(?:s|ped)?|decline|slump|crisis|woes|shortage/i;
@@ -63,6 +63,15 @@ function canonical(html, fallback) { return decodeHtml(html.match(/<link[^>]+rel
 function siteIcon(html, baseUrl) { const raw = html.match(/<link[^>]+rel=["'][^"']*(?:icon|shortcut icon)[^"']*["'][^>]+href=["']([^"']+)/i)?.[1]; try { return new URL(decodeHtml(raw || "/favicon.ico"), baseUrl).href; } catch { return ""; } }
 function publishedAt(html) { const raw = meta(html, "article:published_time") || html.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1]; const date = raw ? new Date(raw) : null; return date && Number.isFinite(date.valueOf()) ? date : null; }
 function eventKey(title) { const stop = new Set(["the", "a", "an", "to", "for", "in", "on", "of", "and", "as", "with", "by", "from", "rs", "crore"]); return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").split("-").filter(x => x && !stop.has(x)).slice(0, 3).join("-"); }
+function headlineSignature(title) {
+  const stop = new Set(["the", "a", "an", "to", "for", "in", "on", "of", "and", "as", "with", "by", "from", "rs", "inr", "crore", "cr", "news", "latest"]);
+  return [...new Set(title.toLowerCase()
+    .replace(/gurgaon/g, "gurugram")
+    .replace(/₹/g, " rs ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim().split(/\s+/)
+    .filter(token => token && !stop.has(token)))].sort().join("-");
+}
 function subjectKey(text) {
   const subjects = [
     ["prestige", /\bprestige(?: group| estates)?\b/i], ["m3m", /\bm3m\b/i], ["sobha", /\b(?:sobha|shobha)\b/i],
@@ -94,7 +103,7 @@ function materialFacts(text) {
 }
 function semanticReservationKeys(cityCode, text, title, newsLink) {
   const subject = subjectKey(text);
-  const keys = [`url:${cityCode}:${newsLink}`];
+  const keys = [`url:${cityCode}:${newsLink}`, `title:${cityCode}|${headlineSignature(title)}`];
   if (subject) {
     const facts = materialFacts(text);
     for (const fact of facts) keys.push(`fact:${cityCode}|${subject}|${fact}`);
@@ -165,6 +174,7 @@ async function runOnce(env, coordinator) {
       const text = `${title} ${description}`;
       const isRemedialDevelopment = remedialDevelopment.test(text);
       if (!title || !description || /\?\s*$/.test(title) || !relevance.test(title) || !relevance.test(text) || !positiveDevelopment.test(text) || rejection.test(text) || ((civicProblemOrSpeculation.test(text) || negativeDevelopment.test(text)) && !isRemedialDevelopment) || (articleDate && Math.abs(articleDate - item.date) > 86_400_000)) { report.skipped++; continue; }
+      if (/\bgreater noida\b/i.test(text)) { report.skipped++; continue; }
       const matches = Object.entries(cityRules).filter(([, rule]) => rule.test(text)).map(([city]) => city);
       const isNcr = /delhi ncr|\bncr\b/i.test(text);
       const cities = (isNcr ? ["gurugram", "noida", "faridabad"] : matches).filter(city => city !== "noida" || !/greater noida/i.test(title));
